@@ -1,53 +1,71 @@
 
-from PyQt5.QtCore import QDir, Qt
-from PyQt5.QtGui import QImage, QPainter, QPalette, QPixmap
-from PyQt5.QtWidgets import (QAction, QApplication, QFileDialog, QLabel,
-        QMainWindow, QMenu, QMessageBox, QScrollArea, QSizePolicy, QProgressBar)
-from PyQt5.QtPrintSupport import QPrintDialog, QPrinter
-import pydicom as dc
 import numpy as np
+
+from PyQt5 import QtGui
+from PyQt5.QtCore import Qt, QThread, QTimer
+#from PyQt5.QtWidgets import QMainWindow, QWidget, QPushButton, QVBoxLayout, QApplication, QSlider
+
+from PyQt5.QtWidgets import (QHBoxLayout, QAction, QApplication, QWidget, QVBoxLayout, QFileDialog, QLabel, QGridLayout,
+        QMainWindow, QMenu, QMessageBox, QScrollArea, QSizePolicy, QProgressBar, QSlider, QSplitter, QPushButton)
+
+from pyqtgraph import ImageView
+import pydicom as dc
 import qimage2ndarray
 import os
 import glob
 from os.path import isfile, join
 from pydicom.filereader import InvalidDicomError
 
-class dcmViewer(QMainWindow):
+class StartWindow(QMainWindow):
     def __init__(self):
-        super(dcmViewer, self).__init__()
+        super().__init__()
 
-        self.printer = QPrinter()
-        self.scaleFactor = 0.0
-
-        self.imageLabel = QLabel()
-        self.imageLabel.setBackgroundRole(QPalette.Base)
-        self.imageLabel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.imageLabel.setScaledContents(True)
-
-        self.scrollArea = QScrollArea()
-        self.scrollArea.setBackgroundRole(QPalette.Dark)
-        self.scrollArea.setWidget(self.imageLabel)
-        self.setCentralWidget(self.scrollArea)
-
-        self.createActions()
-        self.createMenus()
-
-        self.setWindowTitle("Simon DCM Viewer")
-        self.resize(700, 700)
         self.slice=0
         self.UID_t= ['1.2.840.10008.5.1.4.1.1.2', '1.2.840.10008.5.1.4.1.1.2.1']
         self.round_factor=3
         self.lst_dcm_vol=[]
-        #self.progress = QProgressBar(self)
-        #self.progress.setGeometry(200, 80, 250, 20)
+        self.setWindowTitle("DCM Viewer")
+
+        self.central_widget = QWidget()
+        self.button_frame = QPushButton('Load Volume', self.central_widget)
+        self.image_view =  QtGui.QLabel(self)
+
+        img_path='image1.dcm'
+        img=dc.read_file(img_path).pixel_array
+        img=(img-np.min(img))
+        img=img/np.max(img)*255
+        image=qimage2ndarray.array2qimage(img)
+
+        self.image_view.setBackgroundRole(QtGui.QPalette.Base)
+        self.image_view.setPixmap(QtGui.QPixmap.fromImage(image))
+
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(0,100)
+        self.slider.setValue(0)
+
+        self.layout = QVBoxLayout(self.central_widget)
+        self.layout.addWidget(self.button_frame)
+
+        self.layout.addWidget(self.image_view)
+        self.layout.addWidget(self.slider)
+        self.setCentralWidget(self.central_widget)
+##
+
+        #self.scrollArea = QScrollArea()
+        #self.scrollArea.setBackgroundRole(QtGui.QPalette.Dark)
+        #self.scrollArea.setWidget(self.image_view)
+        #self.setCentralWidget(self.scrollArea)
+        #self.createActions()
+
+        self.button_frame.clicked.connect(self.open)
+        self.slider.valueChanged.connect(self.navigate_slices)
+
 
     def open(self):
         #fileName, _ = QFileDialog.getOpenFileName(self, "Open File", QDir.currentPath())
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open File", 'C:/Users/sburg/ttt/test/a10')
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open File", 'K:/RAO_Physik/Research/1_FUNCTIONAL IMAGING/7_Immunoradiomics/crc/1_data/dicom/3_dcm_sorted_2/CT/T0/')
 
         if fileName:
-
-            #yourQImage=qimage2ndarray.array2qimage(yournumpyarray)
 
             directory_name=os.path.dirname(fileName)
 
@@ -57,10 +75,8 @@ class dcmViewer(QMainWindow):
 
             volume_ini=False
 
-
             #self.progress = QProgressBar(self)
             #self.progress.setGeometry(200, 80, 250, 20)
-
             #self.completed = 0
 
             for f in lst_dcm:
@@ -81,32 +97,17 @@ class dcmViewer(QMainWindow):
                     listDicomProblem.append(name+' '+f)
                     pass
 
-            #x=dc.read_file(onlyfiles[0]).Columns
-            #y=dc.read_file(onlyfiles[0]).Rows
             z=len(onlyfiles)
             onlyfiles.sort()
             self.lst_dcm_vol=onlyfiles
-            '''volume = np.empty((x,y,z))
-            #slices=[]
-            i=0
-            for f in onlyfiles:
-
-                ds=dc.read_file(f[1])
-                slice_xy=ds.pixel_array
-                volume[:, :, i]=slice_xy
-                #slices.append(round(float(ds.ImagePositionPatient[2]), self.round_factor))
-                i=i+1
-
-            '''
-
+            self.slider.setRange(0,len(onlyfiles)-1)
             self.slice=round(len(lst_dcm)/2)
+            self.slider.setValue(self.slice)
+            #self.sliderMoved(self.slice)
 
             img_path=onlyfiles[self.slice][1]
             img=dc.read_file(img_path).pixel_array
-            #img=volume[:, :, self.slice]
 
-            #img[img == -2000] = 0 #remove corners set to -2000 UH
-            #normalise to 0-255
             img=(img-np.min(img))
             img=img/np.max(img)*255
             image=qimage2ndarray.array2qimage(img)
@@ -117,15 +118,28 @@ class dcmViewer(QMainWindow):
                         "Error while loading %s." % fileName)
                 return
 
-            self.imageLabel.setPixmap(QPixmap.fromImage(image))
-            self.scaleFactor = 1.0
+            self.image_view.setPixmap(QtGui.QPixmap.fromImage(image))############################################################################
+            #self.scaleFactor = 0.5
 
-            self.printAct.setEnabled(True)
-            self.fitToWindowAct.setEnabled(True)
-            self.updateActions()
+            #self.printAct.setEnabled(True)
+            #self.fitToWindowAct.setEnabled(True)
+            #self.updateActions()
 
-            if not self.fitToWindowAct.isChecked():
-                self.imageLabel.adjustSize()
+            #if not self.fitToWindowAct.isChecked():
+            #    self.image_view.adjustSize()
+
+
+    def navigate_slices(self, value):
+        #print(value)
+        self.slice = self.slider.value()
+        #print(self.slice)
+        img_path=self.lst_dcm_vol[self.slice][1]
+        img=dc.read_file(img_path).pixel_array
+
+        img=(img-np.min(img))
+        img=img/np.max(img)*255
+        image=qimage2ndarray.array2qimage(img)
+        self.image_view.setPixmap(QtGui.QPixmap.fromImage(image))
 
     def wheelEvent(self, ev):
 
@@ -134,130 +148,19 @@ class dcmViewer(QMainWindow):
 
         self.slice=self.slice+int(deltaZ)
         img_path=self.lst_dcm_vol[self.slice][1]
+        self.slider.setValue(self.slice)
 
         img=dc.read_file(img_path).pixel_array
         img=(img-np.min(img))
         img=img/np.max(img)*255
         image=qimage2ndarray.array2qimage(img)
 
-        self.imageLabel.setPixmap(QPixmap.fromImage(image))
-        self.scaleFactor = 1.0
-
-        self.printAct.setEnabled(True)
-        self.fitToWindowAct.setEnabled(True)
-        self.updateActions()
-
-        if not self.fitToWindowAct.isChecked():
-            self.imageLabel.adjustSize()
-
-
-
-    def print_(self):
-        dialog = QPrintDialog(self.printer, self)
-        if dialog.exec_():
-            painter = QPainter(self.printer)
-            rect = painter.viewport()
-            size = self.imageLabel.pixmap().size()
-            size.scale(rect.size(), Qt.KeepAspectRatio)
-            painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
-            painter.setWindow(self.imageLabel.pixmap().rect())
-            painter.drawPixmap(0, 0, self.imageLabel.pixmap())
-
-    def zoomIn(self):
-        self.scaleImage(1.25)
-
-    def zoomOut(self):
-        self.scaleImage(0.8)
-
-    def normalSize(self):
-        self.imageLabel.adjustSize()
-        self.scaleFactor = 1.0
-
-    def fitToWindow(self):
-        fitToWindow = self.fitToWindowAct.isChecked()
-        self.scrollArea.setWidgetResizable(fitToWindow)
-        if not fitToWindow:
-            self.normalSize()
-
-        self.updateActions()
-
-    def about(self):
-        QMessageBox.about(self, "")
-
-    def createActions(self):
-        self.openAct = QAction("&Open...", self, shortcut="Ctrl+O",
-                triggered=self.open)
-
-        self.printAct = QAction("&Print...", self, shortcut="Ctrl+P",
-                enabled=False, triggered=self.print_)
-
-        self.exitAct = QAction("E&xit", self, shortcut="Ctrl+Q",
-                triggered=self.close)
-
-        self.zoomInAct = QAction("Zoom &In (25%)", self, shortcut="Ctrl++",
-                enabled=False, triggered=self.zoomIn)
-
-        self.zoomOutAct = QAction("Zoom &Out (25%)", self, shortcut="Ctrl+-",
-                enabled=False, triggered=self.zoomOut)
-
-        self.normalSizeAct = QAction("&Normal Size", self, shortcut="Ctrl+S",
-                enabled=False, triggered=self.normalSize)
-
-        self.fitToWindowAct = QAction("&Fit to Window", self, enabled=False,
-                checkable=True, shortcut="Ctrl+F", triggered=self.fitToWindow)
-
-        self.aboutAct = QAction("&About", self, triggered=self.about)
-
-        self.aboutQtAct = QAction("About &Qt", self,
-                triggered=QApplication.instance().aboutQt)
-
-    def createMenus(self):
-        self.fileMenu = QMenu("&File", self)
-        self.fileMenu.addAction(self.openAct)
-        self.fileMenu.addAction(self.printAct)
-        self.fileMenu.addSeparator()
-        self.fileMenu.addAction(self.exitAct)
-
-        self.viewMenu = QMenu("&View", self)
-        self.viewMenu.addAction(self.zoomInAct)
-        self.viewMenu.addAction(self.zoomOutAct)
-        self.viewMenu.addAction(self.normalSizeAct)
-        self.viewMenu.addSeparator()
-        self.viewMenu.addAction(self.fitToWindowAct)
-
-        self.helpMenu = QMenu("&Help", self)
-        self.helpMenu.addAction(self.aboutAct)
-        self.helpMenu.addAction(self.aboutQtAct)
-
-        self.menuBar().addMenu(self.fileMenu)
-        self.menuBar().addMenu(self.viewMenu)
-        self.menuBar().addMenu(self.helpMenu)
-
-    def updateActions(self):
-        self.zoomInAct.setEnabled(not self.fitToWindowAct.isChecked())
-        self.zoomOutAct.setEnabled(not self.fitToWindowAct.isChecked())
-        self.normalSizeAct.setEnabled(not self.fitToWindowAct.isChecked())
-
-    def scaleImage(self, factor):
-        self.scaleFactor *= factor
-        self.imageLabel.resize(self.scaleFactor * self.imageLabel.pixmap().size())
-
-        self.adjustScrollBar(self.scrollArea.horizontalScrollBar(), factor)
-        self.adjustScrollBar(self.scrollArea.verticalScrollBar(), factor)
-
-        self.zoomInAct.setEnabled(self.scaleFactor < 3.0)
-        self.zoomOutAct.setEnabled(self.scaleFactor > 0.333)
-
-    def adjustScrollBar(self, scrollBar, factor):
-        scrollBar.setValue(int(factor * scrollBar.value()
-                                + ((factor - 1) * scrollBar.pageStep()/2)))
+        self.image_view.setPixmap(QtGui.QPixmap.fromImage(image))
+    
 
 
 if __name__ == '__main__':
-
-    import sys
-
-    app = QApplication(sys.argv)
-    dcmViewer = dcmViewer()
-    dcmViewer.show()
-sys.exit(app.exec_())
+    app = QApplication([])
+    window = StartWindow()
+    window.show()
+app.exit(app.exec_())
