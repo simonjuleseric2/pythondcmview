@@ -61,8 +61,8 @@ class StartWindow(QMainWindow):
 
     def open(self):
         #fileName, _ = QFileDialog.getOpenFileName(self, "Open File", QDir.currentPath())
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open File", 'K:/RAO_Physik/Research/1_FUNCTIONAL IMAGING/7_Immunoradiomics/crc/1_data/dicom/resized_img/CT_linear_3_75/CT/T0/10/')
-        #fileName, _ = QFileDialog.getOpenFileName(self, "Open File", os.getcwd())
+        #fileName, _ = QFileDialog.getOpenFileName(self, "Open File", 'K:/RAO_Physik/Research/1_FUNCTIONAL IMAGING/7_Immunoradiomics/crc/1_data/dicom/resized_img/CT_linear_3_75/CT/T0/10/')
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open File", os.getcwd())
 
         if fileName:
 
